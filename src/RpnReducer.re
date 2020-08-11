@@ -71,6 +71,7 @@ let rpnReducer = ({stack, tape}: rpnState, action: rpnAction): rpnState =>
           tape: ["atan(" ++ Js.Float.toString(x) ++ ")", ...tape],
         }
       }
+    // TODO Act II VVV
     | Act2(_) => {stack, tape}
     }
   | [x, y, ...xs] =>
@@ -108,6 +109,7 @@ let rpnReducer = ({stack, tape}: rpnState, action: rpnAction): rpnState =>
           tape: ["atan(" ++ Js.Float.toString(x) ++ ")", ...tape],
         }
       }
+    // TODO Act II VVV
     | Act2(op) =>
       switch (op) {
       | Add => {

@@ -1,13 +1,19 @@
 {
 	"name": "reasonpn",
 	"version": "0.1.0",
-	"sources": {
-		"dir": "src",
-		"subdirs": true
-	},
+	"sources": [
+		{
+			"dir": "src",
+			"subdirs": true
+		},
+		{
+			"dir": "__tests__",
+			"type": "dev"
+		}
+	],
 	"package-specs": {
 		"module": "commonjs",
-		"in-source": true
+		"in-source": false
 	},
 	"suffix": ".bs.js",
 	"bs-dependencies": ["rationale", "@glennsl/bs-jest"],

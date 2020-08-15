@@ -1,3 +1,6 @@
+open Rationale;
+open Rationale.Option.Infix;
+
 type rpnState = {
   stack: list(float),
   tape: list(string),
@@ -17,7 +20,9 @@ type op2 =
   | Sub
   | Mul
   | Div
-  | Xy;
+  | Xy
+  | XrtY
+  | LogXY;
 
 type rpnAction =
   | Enter(float)
@@ -27,125 +32,142 @@ type rpnAction =
 
 let rpnInit: rpnState = {stack: [], tape: []};
 
+let str = Js.Float.toString;
+let def = Option.default;
+let hd = RList.head;
+let tail = RList.tail;
+
+let fromNaN = (n: float) =>
+  Js.Float.isNaN(n) ? Option.none() : Option.some(n);
+
 let rpnReducer = ({stack, tape}: rpnState, action: rpnAction): rpnState =>
   switch (stack) {
   | [] =>
     switch (action) {
-    | Enter(a) => {stack: [a], tape: ["Entered " ++ Js.Float.toString(a)]}
-    | Drop => {stack: [], tape: []}
-    | Act1(_) => {stack: [], tape: []}
-    | Act2(_) => {stack: [], tape: []}
+    | Enter(a) => {stack: [a], tape: ["Entered " ++ str(a), ...tape]}
+    | Drop => {stack: [], tape}
+    | Act1(_) => {stack: [], tape}
+    | Act2(_) => {stack: [], tape}
     }
-  | [x] =>
+  | [x, ...xs] =>
     switch (action) {
-    | Enter(a) => {stack: [a, x], tape: []}
-    | Drop => {stack: [], tape: []}
+    | Enter(a) => {
+        stack: [a, x, ...xs],
+        tape: ["Entered " ++ str(a), ...tape],
+      }
+    | Drop => {stack: xs, tape: ["Dropped " ++ str(x), ...tape]}
     | Act1(op) =>
       switch (op) {
       | Exp => {
-          stack: [exp(x)],
-          tape: ["exp(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: [exp(x), ...xs],
+          tape: ["exp(" ++ str(x) ++ ")", ...tape],
         }
       | Sin => {
-          stack: [sin(x)],
-          tape: ["sin(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: [sin(x), ...xs],
+          tape: ["sin(" ++ str(x) ++ ")", ...tape],
         }
       | Cos => {
-          stack: [cos(x)],
-          tape: ["cos(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: [cos(x), ...xs],
+          tape: ["cos(" ++ str(x) ++ ")", ...tape],
         }
       | Tan => {
-          stack: [tan(x)],
-          tape: ["tan(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: [tan(x), ...xs],
+          tape: ["tan(" ++ str(x) ++ ")", ...tape],
         }
       | Asin => {
-          stack: [asin(x)],
-          tape: ["asin(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: asin(x) |> fromNaN <$> (n => [n, ...xs]) |> def(xs),
+          tape:
+            asin(x)
+            |> fromNaN
+            <$> (_ => ["asin(" ++ str(x) ++ ")", ...tape])
+            |> def(tape),
         }
       | Acos => {
-          stack: [acos(x)],
-          tape: ["acos(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: acos(x) |> fromNaN <$> (n => [n, ...xs]) |> def(xs),
+          tape:
+            acos(x)
+            |> fromNaN
+            <$> (_ => ["acos(" ++ str(x) ++ ")", ...tape])
+            |> def(tape),
         }
       | Atan => {
-          stack: [atan(x)],
-          tape: ["atan(" ++ Js.Float.toString(x) ++ ")", ...tape],
+          stack: [atan(x), ...xs],
+          tape: ["atan(" ++ str(x) ++ ")", ...tape],
         }
       }
-    // TODO Act II VVV
-    | Act2(_) => {stack, tape}
-    }
-  | [x, y, ...xs] =>
-    switch (action) {
-    | Enter(a) => {stack: [a, x, y, ...xs], tape: []}
-    | Drop => {stack: xs, tape: []}
-    | Act1(op) =>
-      switch (op) {
-      | Exp => {
-          stack: [exp(x), y, ...xs],
-          tape: ["exp(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Sin => {
-          stack: [sin(x), y, ...xs],
-          tape: ["sin(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Cos => {
-          stack: [cos(x), y, ...xs],
-          tape: ["cos(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Tan => {
-          stack: [tan(x), y, ...xs],
-          tape: ["tan(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Asin => {
-          stack: [asin(x), y, ...xs],
-          tape: ["asin(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Acos => {
-          stack: [acos(x), y, ...xs],
-          tape: ["acos(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      | Atan => {
-          stack: [atan(x), y, ...xs],
-          tape: ["atan(" ++ Js.Float.toString(x) ++ ")", ...tape],
-        }
-      }
-    // TODO Act II VVV
     | Act2(op) =>
       switch (op) {
       | Add => {
-          stack: [x +. y, ...xs],
-          tape: [
-            Js.Float.toString(x) ++ "+" ++ Js.Float.toString(y),
-            ...tape,
+          stack: [
+            hd(xs) <$> (y => x +. y) |> def(x),
+            ...tail(xs) |> def([]),
           ],
+          tape:
+            hd(xs)
+            <$> (y => [str(x) ++ "+" ++ str(y), ...tape])
+            |> def(tape),
         }
       | Sub => {
-          stack: [x -. y, ...xs],
-          tape: [
-            Js.Float.toString(x) ++ "-" ++ Js.Float.toString(y),
-            ...tape,
+          stack: [
+            hd(xs) <$> (y => x -. y) |> def(x),
+            ...tail(xs) |> def([]),
           ],
+          tape:
+            hd(xs)
+            <$> (y => [str(x) ++ "-" ++ str(y), ...tape])
+            |> def(tape),
         }
       | Mul => {
-          stack: [x *. y, ...xs],
-          tape: [
-            Js.Float.toString(x) ++ "×" ++ Js.Float.toString(y),
-            ...tape,
+          stack: [
+            hd(xs) <$> (y => x *. y) |> def(x),
+            ...tail(xs) |> def([]),
           ],
+          tape:
+            hd(xs)
+            <$> (y => [str(x) ++ "*" ++ str(y), ...tape])
+            |> def(tape),
         }
       | Div => {
-          stack: [x /. y, ...xs],
-          tape: [
-            Js.Float.toString(x) ++ "÷" ++ Js.Float.toString(y),
-            ...tape,
+          stack: [
+            hd(xs) <$> (y => y /. x) |> def(x),
+            ...tail(xs) |> def([]),
           ],
+          tape:
+            hd(xs)
+            <$> (y => [str(y) ++ "÷" ++ str(x), ...tape])
+            |> def(tape),
         }
       | Xy => {
-          stack: [x ** y, ...xs],
-          tape: [
-            Js.Float.toString(x) ++ "^" ++ Js.Float.toString(y),
-            ...tape,
+          stack: [
+            hd(xs) <$> (y => x ** y) |> def(x),
+            ...tail(xs) |> def([]),
           ],
+          tape:
+            hd(xs)
+            <$> (y => [str(x) ++ "^" ++ str(y), ...tape])
+            |> def(tape),
+        }
+      | XrtY => {
+          stack: [
+            hd(xs) <$> (y => y ** (1.0 /. x)) |> def(x),
+            ...tail(xs) |> def([]),
+          ],
+          tape:
+            hd(xs)
+            <$> (y => [str(y) ++ "^(1/" ++ str(x) ++ ")", ...tape])
+            |> def(tape),
+        }
+      | LogXY => {
+          stack: [
+            hd(xs)
+            <$> (y => log(y) /. log(x) |> fromNaN |> def(0.0))
+            |> def(x),
+            ...tail(xs) |> def([]),
+          ],
+          tape:
+            hd(xs)
+            <$> (y => ["log_" ++ str(x) ++ "^" ++ str(y), ...tape])
+            |> def(tape),
         }
       }
     }
